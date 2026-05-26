@@ -1,0 +1,33 @@
+# ─── Core Deep Learning ───────────────────────────────────────────────────────
+torch>=2.1.0
+torchvision>=0.16.0
+
+# ─── Vision Transformer Building Blocks ──────────────────────────────────────
+timm>=0.9.12
+
+# ─── Google Earth Engine API (data streaming) ────────────────────────────────
+earthengine-api>=0.1.390
+
+# ─── Geospatial Raster Processing ────────────────────────────────────────────
+rasterio>=1.3.9
+
+# ─── Array Math & Memory Utilities ───────────────────────────────────────────
+numpy>=1.26.0
+opencv-python>=4.9.0.80
+
+# ─── Evaluation Metrics ──────────────────────────────────────────────────────
+scikit-image>=0.22.0
+
+# ─── Config Management ───────────────────────────────────────────────────────
+pyyaml>=6.0.1
+
+# ─── Training Utilities ──────────────────────────────────────────────────────
+tqdm>=4.66.0
+
+# ─── Visualization & UI ──────────────────────────────────────────────────────
+matplotlib>=3.8.0
+streamlit>=1.32.0
+streamlit-image-comparison>=0.0.4
+
+# ─── Kaggle CLI (for cloud deployment) ───────────────────────────────────────
+kaggle>=1.6.6

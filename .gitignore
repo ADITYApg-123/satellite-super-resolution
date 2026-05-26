@@ -1,0 +1,41 @@
+# ─── Model Weights (large binary files) ───────────────────────────────────────
+weights/
+*.pth
+*.pt
+*.ckpt
+
+# ─── Data (satellite imagery — do not commit, too large) ──────────────────────
+data/
+outputs/
+
+# ─── Secrets & API Credentials ────────────────────────────────────────────────
+kaggle.json
+credentials.json
+*.env
+.env
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Virtual Environments ─────────────────────────────────────────────────────
+venv/
+env/
+.venv/
+
+# ─── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+desktop.ini
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
