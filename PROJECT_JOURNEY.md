@@ -70,5 +70,27 @@ satellite-super-resolution/
 ### What I Would Tell an Interviewer
 > "The first thing I built was the mathematical skeleton of the Swin2SR architecture. I didn't want to get bogged down in heavy training loops yet. I needed to prove that a Sentinel-2 sized tensor (64x64) could flow through the deep feature extraction and correctly unwrap via PixelShuffle into a 512x512 array. Wrapping the inference function in `torch.no_grad()` was a critical early decision — without it, the PyTorch autograd engine allocates massive memory graphs that would crash our VRAM instantly during inference."
 
+## Entry 2 — Stage 2: The Data Pipeline & Metrics
+**Date**: 2026-05-27
+**Stage**: Stage 2 — GEE Data Loader & Evaluation Setup
+
+### What We Did
+- Wrote `src/utils_memory.py` containing `extract_strided_windows` to chunk massive geographic regions into manageable `64x64` tensors to prevent OOM (Out-of-Memory) crashes on the GPU.
+- Wrote `src/data_loader.py` with the `fetch_gee_image_with_retry` function. Implemented exponential backoff to handle Google Earth Engine API rate limiting.
+- Implemented radiometric normalization to convert Sentinel-2's 16-bit raw sensor data (values up to 10000+) into cleanly clipped `0.0 to 1.0` floats, capping max reflectance at 3000 to ignore glaring clouds and metal roofs.
+- Created `src/metrics.py` featuring industry-standard PSNR and SSIM, plus our custom **Hallucination Score** (degrading the SR output back to LR dimensions and running SSIM against the original to detect invented generative features).
+
+### Challenges & Troubleshooting
+- **Jupyter Environment Bug**: When testing the pipeline in our IDE, the Jupyter notebook hung silently. We realized we hadn't installed the `ipykernel` package backend. Instead of throwing an error, the UI just stalled. We quickly installed it, added it to `requirements.txt`, and restarted the IDE kernel, which immediately solved the issue. A good reminder that local environments need explicit backend engines.
+
+### Strategic Decisions (Q&A)
+- **Question**: *Will we train locally or on Kaggle?*
+  - **Decision**: We use the local IDE strictly as a "laboratory" to engineer the architecture, write modular scripts, and test single batches. For the 24-hour training loops required by the Transformer, we will push this repo to GitHub and run it on Kaggle using their free Dual-T4 GPUs. Local PC hardware would simply overheat or crash.
+- **Question**: *How much data will we stream from GEE?*
+  - **Decision**: We will stream small, live GEE patches locally just for testing. But for the massive training run, streaming gigabytes dynamically across the internet into Kaggle would cause severe I/O bottlenecks. Instead, we will mount a pre-curated Kaggle dataset (like WorldStrat) directly to the Kaggle kernel for blazing-fast local disk access.
+
+### What I Would Tell an Interviewer
+> "Data engineering is just as critical as the model architecture. I designed a two-pronged data strategy: local streaming for rapid prototyping, and static pre-curated datasets for heavy GPU training to avoid I/O bottlenecks. Additionally, I built a custom Hallucination Guardrail metric early on. In industry, it's not enough to make an image look sharp; you have to prove to stakeholders that the model didn't invent a nonexistent building or erase a real car."
+
 ---
 <!-- Future entries will be appended here as we progress through each stage -->
