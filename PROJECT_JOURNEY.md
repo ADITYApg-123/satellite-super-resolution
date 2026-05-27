@@ -137,3 +137,14 @@ satellite-super-resolution/
 
 ---
 <!-- All 5 Stages Complete! We have successfully built the architecture. -->
+
+## Appendix: Cloud Training & Infrastructure Strategy
+**Strategic ML Engineering Q&A**
+
+### 1. How do we train the model if the internet cuts out or I close my laptop?
+> "In a production environment, you never run a 24-hour training script interactively on your local machine. We rely on **Headless Cloud Execution**. On Kaggle, this means utilizing the 'Save & Run All' feature. I built the PyTorch pipeline (`train.py`) to be fully autonomous. Once triggered, Kaggle provisions a cloud instance, runs the code from top to bottom, writes the `.pth` weights to the output directory, and gracefully shuts down the GPU. This allowed me to train massive models overnight without worrying about local hardware failures or network drops."
+
+### 2. Can the platform handle 50GB+ of satellite data all at once?
+> "A common junior mistake is trying to load a massive dataset into System RAM or GPU VRAM, causing an instant Out-Of-Memory (OOM) crash. To solve this, I designed our architecture around PyTorch's **Lazy Loading** pattern. 
+> 
+> By utilizing a custom `Dataset` class (`WorldStratDataset`) and a `DataLoader`, our memory footprint remains effectively zero regardless of whether the dataset is 5 Gigabytes or 5 Terabytes. The data lives on a fast SSD; the DataLoader reaches into the disk, pulls exactly 4 images (our batch size) into the 16GB VRAM, runs the forward/backward pass, and flushes the memory before grabbing the next batch. This architecture ensures the pipeline scales infinitely with disk space without ever bottlenecking the GPU memory."
