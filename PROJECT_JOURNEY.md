@@ -109,5 +109,18 @@ satellite-super-resolution/
 ### What I Would Tell an Interviewer
 > "When designing the training loop, memory efficiency and stability were my top priorities. I immediately wrapped the forward and backward passes in PyTorch's Automatic Mixed Precision (AMP). By converting safe operations to FP16, I was able to double my batch size on standard T4 GPUs without crashing. I also implemented gradient clipping to prevent the Transformer from collapsing during the unstable early epochs. When considering Loss functions, I acknowledged that L1 is merely a starting point—optimal super-resolution requires a composite loss strategy prioritizing structural similarity (SSIM) alongside absolute pixel error."
 
+## Entry 4 — Stage 4: The Hallucination Guardrails
+**Date**: 2026-05-28
+**Stage**: Stage 4 — Custom Loss Functions
+
+### What We Did
+- Wrote `src/loss_functions.py` containing three specialized PyTorch loss modules.
+- **Charbonnier Loss**: A differentiable, smoothed version of L1 Loss that prevents gradient oscillation when the model error is near zero.
+- **Gradient Profile Loss**: A custom edge-detection penalty. It uses Sobel Filters (static convolution kernels) to measure the physical sharpness of edges in the AI prediction versus the ground truth.
+- **Composite Hallucination Loss**: A master PyTorch module that wraps the Charbonnier loss and the Gradient Profile loss into a single backward pass, allowing us to simultaneously optimize for pixel-perfect colors and structurally sharp buildings.
+
+### What I Would Tell an Interviewer
+> "Standard MSE or L1 losses are simply not enough for high-fidelity satellite imagery. I designed a Composite Loss Function from scratch in PyTorch to combat generative hallucinations. While Charbonnier handled the base structural alignment without oscillating at convergence, my Gradient Profile loss actively penalized blurry edges by running a 2D Sobel filter across the luminance channel during the backward pass. This mathematically forced the Transformer to predict crisp structural edges rather than smoothed approximations."
+
 ---
 <!-- Future entries will be appended here as we progress through each stage -->
