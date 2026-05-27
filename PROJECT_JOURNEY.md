@@ -122,5 +122,18 @@ satellite-super-resolution/
 ### What I Would Tell an Interviewer
 > "Standard MSE or L1 losses are simply not enough for high-fidelity satellite imagery. I designed a Composite Loss Function from scratch in PyTorch to combat generative hallucinations. While Charbonnier handled the base structural alignment without oscillating at convergence, my Gradient Profile loss actively penalized blurry edges by running a 2D Sobel filter across the luminance channel during the backward pass. This mathematically forced the Transformer to predict crisp structural edges rather than smoothed approximations."
 
+## Entry 5 — Stage 5: The Ensemble & UI
+**Date**: 2026-05-28
+**Stage**: Stage 5 — 3-Tier Ensemble & Streamlit Dashboard
+
+### What We Did
+- Developed `src/ensemble.py` to handle the final output of the models.
+- Implemented **Alpha Blending** to fuse the aggressive Swin2SR predictions with conservative Bicubic/Real-ESRGAN predictions, diluting potential hallucinations while maintaining sharp edges.
+- Implemented **2D Gaussian (Hanning) Windows**. When stitching 64x64 patches back into large geographic areas, this fades the edges of the patches to seamlessly blend them together, eliminating hard checkerboard seams.
+- Built `app.py`, an interactive Streamlit web dashboard. We used `streamlit-image-comparison` to provide a beautiful sliding visualizer so end-users (or contest judges) can interactively compare the raw 10m Sentinel-2 input against our 1.25m AI output, alongside a live readout of our safety metrics.
+
+### What I Would Tell an Interviewer
+> "The model architecture is only half the battle; deployment is where it becomes a product. When piecing small inference patches back into massive city-scale rasters, grid-seam artifacts are a huge problem. I solved this by multiplying the inference outputs by a 2D Gaussian window before accumulation, effectively erasing the seams via alpha blending. Finally, I built a Streamlit application to democratize the model. Rather than just handing stakeholders a folder of numbers and metrics, I gave them a web app with an interactive sliding visualizer and a live dashboard tracking our Hallucination Guardrail score."
+
 ---
-<!-- Future entries will be appended here as we progress through each stage -->
+<!-- All 5 Stages Complete! We have successfully built the architecture. -->

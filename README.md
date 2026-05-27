@@ -58,7 +58,7 @@ The model is constrained by two physics-aware loss functions:
 | Stage 2 | GEE data pipeline, normalization, metrics | ✅ Complete |
 | Stage 3 | Fine-tuning on WorldStrat | ✅ Complete |
 | Stage 4 | Hallucination guardrail loss functions | ✅ Complete |
-| Stage 5 | 3-Tier ensemble + Streamlit UI | ⬜ Not Started |
+| Stage 5 | 3-Tier ensemble + Streamlit UI | ✅ Complete |
 
 ---
 
