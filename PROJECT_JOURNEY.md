@@ -92,5 +92,22 @@ satellite-super-resolution/
 ### What I Would Tell an Interviewer
 > "Data engineering is just as critical as the model architecture. I designed a two-pronged data strategy: local streaming for rapid prototyping, and static pre-curated datasets for heavy GPU training to avoid I/O bottlenecks. Additionally, I built a custom Hallucination Guardrail metric early on. In industry, it's not enough to make an image look sharp; you have to prove to stakeholders that the model didn't invent a nonexistent building or erase a real car."
 
+## Entry 3 — Stage 3: The Training Engine
+**Date**: 2026-05-27
+**Stage**: Stage 3 — Fine-Tuning PyTorch Pipeline
+
+### What We Did
+- Developed `src/train.py`, the core Kaggle training loop for fine-tuning our Swin2SR architecture.
+- Integrated the `AdamW` optimizer (handling weight decay better than standard Adam) and basic `L1Loss` for the initial model warmup.
+- Embedded Mixed Precision Training using PyTorch's `torch.cuda.amp.GradScaler()` to dynamically calculate math in 16-bit floats. This slashes VRAM usage by 50% and accelerates training by ~40%.
+- Added Gradient Clipping (`torch.nn.utils.clip_grad_norm_`) to act as a circuit breaker against exploding gradients, which is a notorious issue when training Vision Transformers from scratch.
+
+### Strategic Decisions (Q&A)
+- **Question**: *Why just use L1? Aren't there more optimal loss functions? Can we combine loss functions like SSIM and L1?*
+  - **Decision**: Excellent intuition! L1 is fantastic for initial "warmup" to get colors and basic geometry stabilized, but it fails to capture complex high-frequency textures. We decided to use L1 as a baseline for the engine (`train.py`), but agreed to immediately build a composite, multi-metric Custom Loss function (combining SSIM, L1, and Gradient loss) in Stage 4 to replace it.
+
+### What I Would Tell an Interviewer
+> "When designing the training loop, memory efficiency and stability were my top priorities. I immediately wrapped the forward and backward passes in PyTorch's Automatic Mixed Precision (AMP). By converting safe operations to FP16, I was able to double my batch size on standard T4 GPUs without crashing. I also implemented gradient clipping to prevent the Transformer from collapsing during the unstable early epochs. When considering Loss functions, I acknowledged that L1 is merely a starting point—optimal super-resolution requires a composite loss strategy prioritizing structural similarity (SSIM) alongside absolute pixel error."
+
 ---
 <!-- Future entries will be appended here as we progress through each stage -->

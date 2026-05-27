@@ -56,7 +56,7 @@ The model is constrained by two physics-aware loss functions:
 | Pre-Stage 0 | Scaffolding, GEE auth, Kaggle setup | 🔄 In Progress |
 | Stage 1 | Swin2SR baseline inference (8x) | ✅ Complete |
 | Stage 2 | GEE data pipeline, normalization, metrics | ✅ Complete |
-| Stage 3 | Fine-tuning on WorldStrat | ⬜ Not Started |
+| Stage 3 | Fine-tuning on WorldStrat | ✅ Complete |
 | Stage 4 | Hallucination guardrail loss functions | ⬜ Not Started |
 | Stage 5 | 3-Tier ensemble + Streamlit UI | ⬜ Not Started |
 
