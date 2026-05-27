@@ -57,5 +57,18 @@ satellite-super-resolution/
 > configs/, and notebooks/ from day one, every module maps cleanly to a single
 > responsibility, making debugging and remote execution far more tractable."
 
+## Entry 1 — Stage 1: Minimal Working SR
+**Date**: 2026-05-27
+**Stage**: Stage 1 — Swin2SR Baseline Inference
+
+### What We Did
+- Defined the 8x `Swin2SR` model wrapper in `/src/model_swin2sr.py`.
+- Simulated the Transformer architecture including the shallow feature extraction, a deep feature residual stub, and an 8x `PixelShuffle` upsampler.
+- Wrote `/notebooks/stage1_inference.ipynb` to verify the mathematical pipeline end-to-end.
+- Tested an input tensor of `(1, 3, 64, 64)` which successfully upscaled to `(1, 3, 512, 512)` without tracking gradients.
+
+### What I Would Tell an Interviewer
+> "The first thing I built was the mathematical skeleton of the Swin2SR architecture. I didn't want to get bogged down in heavy training loops yet. I needed to prove that a Sentinel-2 sized tensor (64x64) could flow through the deep feature extraction and correctly unwrap via PixelShuffle into a 512x512 array. Wrapping the inference function in `torch.no_grad()` was a critical early decision — without it, the PyTorch autograd engine allocates massive memory graphs that would crash our VRAM instantly during inference."
+
 ---
 <!-- Future entries will be appended here as we progress through each stage -->
