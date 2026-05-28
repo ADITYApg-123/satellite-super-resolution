@@ -396,3 +396,35 @@ The only sound approach is **sequential training**: each session builds directly
 
 ### What I Would Tell an Interviewer
 > "Scaling training beyond a single GPU session required careful infrastructure design. I implemented a comprehensive checkpoint system that serializes not just the model weights, but both optimizer states and the learning rate scheduler — without optimizer state, the AdamW momentum statistics reset to zero on resume, causing a destructive spike in the loss curve. I also implemented a strict train/validation split with early stopping, because without held-out evaluation, there is no way to distinguish genuine learning from overfitting to training patches. When a colleague suggested parallelizing training across multiple notebooks and merging weights, I explained why weight averaging fails in non-convex optimization — neural networks trained independently converge to different local minima, and their arithmetic mean falls in an untrained region of the loss landscape."
+
+---
+
+## Entry 11 — Implementing the GeoSafe Loss Suite
+**Date**: 2026-05-29
+**Stage**: V2 Implementation — Phase 2 (Loss Functions)
+
+### What We Did
+We completely rewrote `src/loss_functions.py` to translate our GeoSafe research (Entry 7) into PyTorch code. We implemented four new modules:
+1. **`UNetDiscriminator`**: A lightweight hourglass CNN that outputs a spatial "real vs. fake" map rather than a single global score. This provides localized gradient feedback, forcing the generator to fix specific blurry patches.
+2. **`RaGANLoss`**: A Relativistic Average GAN formulation using `BCEWithLogitsLoss`. It explicitly trains the generator to make fake images look *more real than the average of the real images in the batch*.
+3. **`LPIPSWrapper`**: A frozen VGG-based perceptual metric that compares deep feature activations to simulate human texture judgment. We wrapped the import in a `try/except` block to ensure the Streamlit app doesn't crash on local machines that lack the library.
+4. **`GeoSafeLoss`**: The master module combining L1, Gradient, LPIPS, and RaGAN with strict coefficient weights.
+
+### What I Would Tell an Interviewer
+> "When translating theoretical loss functions into production code, graceful degradation is crucial. I utilized the `lpips` library for perceptual loss during training, but wrapped its import in a protective `try/except` block. Because the Streamlit inference engine never calculates loss, it doesn't need the library. This architectural separation meant I could leverage complex, heavy dependencies for cloud training without bloating the lightweight local deployment environment. Furthermore, writing a custom `UNetDiscriminator` that outputs spatial maps rather than a single scalar dramatically improved the localized gradient signal for the generator."
+
+---
+
+## Entry 12 — The WorldStrat Kaggle Data Engine
+**Date**: 2026-05-29
+**Stage**: V2 Implementation — Phase 3 (Data Loader)
+
+### What We Did
+We updated `src/data_loader.py` to handle the massive 102 GB WorldStrat dataset dynamically.
+- **CSV Manifest Parsing**: The `WorldStratDataset` now uses `pandas` to read `metadata.csv`, automatically filtering out any patches with >10% cloud cover.
+- **Lazy I/O**: Instead of pre-loading arrays, the `__getitem__` method constructs file paths on the fly and uses `cv2.imread` to load the exact 16-bit TIFF image from disk at the exact moment the GPU requests it.
+- **Safe Augmentations**: We utilized `torchvision.transforms.functional` to apply random horizontal flips, vertical flips, and 90-degree rotations. Crucially, the random seed state ensures the exact same spatial transformation is applied to both the LR input and HR target simultaneously.
+- **Dummy Mode Fallback**: If the CSV is missing (e.g., local IDE testing), the dataset automatically yields synthetic random tensors, preventing pipeline crashes during local development.
+
+### What I Would Tell an Interviewer
+> "To process a 102 GB satellite dataset without out-of-memory crashes, I built a lazy-loading data engine utilizing Pandas and OpenCV. The loader dynamically reads the `metadata.csv` manifest, filters out cloud-corrupted patches, and streams 16-bit TIFF files from disk directly to the GPU on demand. A critical implementation detail in super-resolution data augmentation is spatial alignment: when applying random flips or rotations, you must guarantee the identical transformation matrix is applied to both the Low-Res input and the High-Res ground truth. If they fall out of alignment by even a single pixel, the L1 loss will destructively penalize the model for being 'wrong' when it was actually correct."
