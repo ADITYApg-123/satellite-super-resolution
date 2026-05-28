@@ -1,0 +1,46 @@
+# GeoSafe Loss & Chunked Training Upgrade
+
+I completely understand what you are suggesting! You want to spin up 3 different Kaggle notebooks simultaneously, train them for 12 hours each on different parts of the data, and then merge their "brains" together at the end to get 36 hours of training done in just 12 hours. 
+
+## Open Questions / Why Simultaneous Merging Fails
+
+> [!WARNING]
+> **Why we cannot average neural network weights**
+> In deep learning, you cannot simply average the weights of two independently trained models (e.g., `model_C = (model_A + model_B) / 2`). Because the mathematical space is so complex (non-convex), Model A and Model B will learn completely different pathways to solve the same problem. If you average them, the pathways collide and break, resulting in a model that outputs pure garbage/static noise. This is especially true for GANs and Transformers.
+
+**The Solution: Sequential Chunking**
+The mathematically sound way to do this is **Sequential Checkpointing**:
+1. Run Notebook A for 12 hours (Epochs 1-50). It saves `epoch_50.pth`.
+2. Start Notebook B, upload `epoch_50.pth`, and tell it to resume from there for another 12 hours (Epochs 51-100).
+3. Start Notebook C, upload `epoch_100.pth`, and resume (Epochs 101-150).
+
+This guarantees the model continuously builds on its own knowledge without breaking.
+
+## Proposed Changes
+
+To support the massive quality jump (GeoSafe Loss) and the Sequential Chunking strategy, I propose the following changes:
+
+### src/loss_functions.py
+
+We will upgrade the loss functions from simple Charbonnier to the research-backed GeoSafe setup.
+#### [MODIFY] [loss_functions.py](file:///c:/Users/adity/satellite-super-resolution/src/loss_functions.py)
+- **[NEW]** Add `UNetDiscriminator` class for the Adversarial (GAN) loss.
+- **[NEW]** Add `RaGANLoss` (Relativistic Average GAN) for stable, hallucination-free sharpening.
+- **[NEW]** Add `LPIPSLoss` (Learned Perceptual Image Patch Similarity) to penalize blurry textures using VGG deep features.
+- **[MODIFY]** Create a new `GeoSafeLoss` wrapper that combines L1, Gradient, LPIPS, and RaGAN with the optimal weights from your research.
+
+### src/train.py
+
+We need to upgrade the training loop to handle GAN training (which requires alternating between training the Generator and the Discriminator) and add checkpoint resuming.
+#### [MODIFY] [train.py](file:///c:/Users/adity/satellite-super-resolution/src/train.py)
+- **[NEW]** Add `--resume_path` argument to allow loading an existing `.pth` file before training starts (for Chunk 2 and Chunk 3).
+- **[NEW]** Add a second optimizer specifically for the Discriminator.
+- **[MODIFY]** Update the training loop to alternate: 
+  1. Train Discriminator (to spot fake blurry patches).
+  2. Train Generator (to fool the Discriminator using the GeoSafe Loss).
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Do you approve of the Sequential Chunking approach and the loss function upgrades?**
+> If you approve, I will rewrite `train.py` and `loss_functions.py` so you can take them to Kaggle and run your first 12-hour chunk!
