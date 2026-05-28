@@ -428,3 +428,19 @@ We updated `src/data_loader.py` to handle the massive 102 GB WorldStrat dataset 
 
 ### What I Would Tell an Interviewer
 > "To process a 102 GB satellite dataset without out-of-memory crashes, I built a lazy-loading data engine utilizing Pandas and OpenCV. The loader dynamically reads the `metadata.csv` manifest, filters out cloud-corrupted patches, and streams 16-bit TIFF files from disk directly to the GPU on demand. A critical implementation detail in super-resolution data augmentation is spatial alignment: when applying random flips or rotations, you must guarantee the identical transformation matrix is applied to both the Low-Res input and the High-Res ground truth. If they fall out of alignment by even a single pixel, the L1 loss will destructively penalize the model for being 'wrong' when it was actually correct."
+
+---
+
+## Entry 13 — Building the V2 Training Engine
+**Date**: 2026-05-29
+**Stage**: V2 Implementation — Phase 4 (Training Loop)
+
+### What We Did
+We completely rewrote `src/train.py` from a basic L1 script into a robust GAN training engine capable of spanning multiple 12-hour Kaggle sessions.
+- **Alternating GAN Loop**: The core loop now updates the discriminator first (`d_loss`), freezes it, and then updates the generator (`g_loss`), using `torch.cuda.amp.autocast` for both.
+- **Strict Train/Validation Split**: Implemented a 90/10 split using PyTorch's `random_split`. At the end of every epoch, the model is frozen (`.eval()`), and we compute the PSNR on the unseen 10% validation set. 
+- **Stateful Checkpointing**: To beat Kaggle's 12-hour timeout, the script now saves a master checkpoint containing: the Generator weights, Discriminator weights, Optimizer states (AdamW momentum), and Learning Rate Scheduler states (Cosine Annealing).
+- **Early Stopping & Best Model**: The engine tracks the highest validation PSNR and automatically saves `geosafe_best_generator.pth` only when the model genuinely improves on unseen data.
+
+### What I Would Tell an Interviewer
+> "Writing a GAN training loop requires extreme care with the computational graph. If you don't explicitly `.detach()` the fake images before feeding them to the discriminator, PyTorch will attempt to back-propagate the discriminator's gradients all the way through the generator, causing the GPU memory to explode. Furthermore, when implementing our checkpoint-resume system for Kaggle, I made sure to save the AdamW optimizer states. Many juniors only save the model weights, which means when they resume training, the optimizer's momentum buffers are wiped to zero, causing a massive destructive spike in the loss curve that ruins the first several epochs of the resumed session."
