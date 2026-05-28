@@ -444,3 +444,19 @@ We completely rewrote `src/train.py` from a basic L1 script into a robust GAN tr
 
 ### What I Would Tell an Interviewer
 > "Writing a GAN training loop requires extreme care with the computational graph. If you don't explicitly `.detach()` the fake images before feeding them to the discriminator, PyTorch will attempt to back-propagate the discriminator's gradients all the way through the generator, causing the GPU memory to explode. Furthermore, when implementing our checkpoint-resume system for Kaggle, I made sure to save the AdamW optimizer states. Many juniors only save the model weights, which means when they resume training, the optimizer's momentum buffers are wiped to zero, causing a massive destructive spike in the loss curve that ruins the first several epochs of the resumed session."
+
+---
+
+## Entry 14 — The V2 Streamlit Application
+**Date**: 2026-05-29
+**Stage**: V2 Implementation — Phase 5 (Deployment & App Integration)
+
+### What We Did
+We overhauled `app.py` to support the new V2 ecosystem, transforming it from a simple demo into a robust model comparison tool.
+- **Model Selector Dashboard**: Added a sidebar dropdown allowing the user to hot-swap between our V1 model (8x CNN), our new V2 model (4x GeoSafe ResNet), and a pre-trained Real-ESRGAN baseline.
+- **Dynamic Math & RAM Protection**: We updated the `MAX_INPUT_SIZE` logic to dynamically scale based on the selected model. If 8x is selected, it caps the input at 256px to prevent the 15GB RAM crash. If 4x is selected, it allows 512px inputs.
+- **Defensive Importing**: Integrated the `realesrgan` library using a `try/except` block, ensuring the app still runs perfectly (showing a helpful error message instead of a crash) if the user hasn't `pip installed` the massive Real-ESRGAN dependencies.
+- **True Consistency Metrics**: Replaced the hardcoded PSNR/SSIM placeholders with actual math. The app now downscales the AI's high-resolution output back to the exact dimensions of the blurry input, and calculates PSNR/SSIM between them. This serves as a "Consistency Metric" — if the AI hallucinates a fake building, the downscaled output will no longer match the true input, and the PSNR will plummet.
+
+### What I Would Tell an Interviewer
+> "For the final application deployment, I prioritized defensibility and metric integrity. First, I used defensive Python imports for heavy third-party libraries like Real-ESRGAN, ensuring the core Streamlit app remains lightweight and crash-proof on local machines. Second, rather than just displaying theoretical metrics, I implemented a 'Consistency Check.' By downscaling the model's 4x prediction back to 1x and running PSNR against the original raw Sentinel-2 input, we get a mathematically rigorous measurement of hallucination. If a model hallucinates details that weren't mathematically present in the raw data, this Consistency PSNR will instantly flag it."
