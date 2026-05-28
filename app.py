@@ -143,7 +143,8 @@ if lr_pil is not None:
             response = requests.get(url)
             with open(model_path, 'wb') as f:
                 f.write(response.content)
-        upsampler = RealESRGANer(scale=4, model_path=model_path, model=model, tile=0, tile_pad=10, pre_pad=0, half=True, device=device)
+        half_precision = True if torch.cuda.is_available() else False
+        upsampler = RealESRGANer(scale=4, model_path=model_path, model=model, tile=0, tile_pad=10, pre_pad=0, half=half_precision, device=device)
         return upsampler
 
     # 4. Run Inference
