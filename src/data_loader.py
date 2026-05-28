@@ -121,10 +121,16 @@ class WorldStratDataset(Dataset):
             
         row = self.metadata.iloc[idx]
         
-        # Assuming the CSV has columns 'lr_path' and 'hr_path'
-        # e.g., 'lr_dataset/img_001.tif', 'hr_dataset/img_001.tif'
-        lr_full_path = os.path.join(self.root_dir, row['lr_path'])
-        hr_full_path = os.path.join(self.root_dir, row['hr_path'])
+        # Auto-detect column names dynamically to prevent KeyErrors
+        if not hasattr(self, 'lr_col'):
+            cols = [c.lower() for c in row.keys()]
+            # Find the column that contains 'lr' or 'low'
+            self.lr_col = next((c for c in row.keys() if 'lr' in c.lower() or 'low' in c.lower()), row.keys()[0])
+            self.hr_col = next((c for c in row.keys() if 'hr' in c.lower() or 'high' in c.lower()), row.keys()[1])
+            print(f"Auto-detected columns: LR={self.lr_col}, HR={self.hr_col}")
+            
+        lr_full_path = os.path.join(self.root_dir, row[self.lr_col])
+        hr_full_path = os.path.join(self.root_dir, row[self.hr_col])
         
         # Load images (cv2.IMREAD_UNCHANGED reads 16-bit TIFFs correctly)
         lr_img = cv2.imread(lr_full_path, cv2.IMREAD_UNCHANGED)
