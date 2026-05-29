@@ -22,6 +22,30 @@
 
 ---
 
+## 📑 Table of Contents
+
+- [✨ Key Features](#-key-features)
+- [📖 The Problem](#-the-problem)
+- [🏗️ Architecture](#️-architecture)
+- [📊 Performance](#-performance)
+- [🚀 Quick Start](#-quick-start)
+- [🧠 Technical Deep Dive](#-technical-deep-dive)
+- [🗺️ Demo Locations](#️-demo-locations)
+- [📚 Dataset](#-dataset)
+- [❓ FAQ](#-faq)
+
+---
+
+## ✨ Key Features
+
+- 🛡️ **Zero Hallucination Guarantee**: A custom 4-component loss engine prioritizes physical accuracy over aesthetic deep-fakes.
+- ⚡ **Real-Time Performance**: Process 1024x1024 patches in under 0.5s via a highly-optimized 2.3M parameter architecture.
+- 🌍 **Live Earth Engine Integration**: Dynamically pull live satellite imagery from anywhere on Earth directly within the web app.
+- 🎨 **Interactive UI**: Compare before/after results with a sleek, user-friendly slider interface built on Streamlit.
+- 📉 **Lightweight**: Deployable on consumer-grade hardware without requiring an expensive multi-GPU setup.
+
+---
+
 ## 📖 The Problem
 
 > Publicly available satellite imagery from the ESA's **Sentinel-2** constellation is free and globally available, but limited to **10 meters/pixel** — a resolution where cars are invisible, buildings are blobs, and roads are smudges. Commercial alternatives (Maxar WorldView-3, Airbus SPOT 6/7) offer sub-2.5m clarity but cost **thousands of dollars per scene**, making them inaccessible to researchers, NGOs, and disaster-response teams.
@@ -36,14 +60,20 @@ Most existing super-resolution models solve this by using **Generative Adversari
 
 ```mermaid
 graph TD
-    A[Sentinel-2 Input<br>10m/px, 3-ch RGB] --> B[Deep Residual Attention Network<br>8 Residual Blocks × SE Attention + Dual PixelShuffle]
-    B -->|4x Upscale| C[HR Output<br>2.5m/px]
+    classDef input fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#fff
+    classDef model fill:#2980b9,stroke:#2980b9,stroke-width:2px,color:#fff
+    classDef output fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
+    classDef loss fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#fff
+    classDef component fill:#f39c12,stroke:#f1c40f,stroke-width:2px,color:#fff
+
+    A[Sentinel-2 Input<br>10m/px, 3-ch RGB]:::input --> B[Deep Residual Attention Network<br>8 Residual Blocks × SE Attention + Dual PixelShuffle]:::model
+    B -->|4x Upscale| C[HR Output<br>2.5m/px]:::output
     
-    B -.-> D{GeoSafe Loss Engine}
-    D -.->|L1 Anchor| E[Pixel Fidelity]
-    D -.->|Gradient| F[Edge Preservation]
-    D -.->|LPIPS| G[Perceptual Texture]
-    D -.->|RaGAN| H[Adversarial Crisp]
+    B -.-> D{GeoSafe Loss Engine}:::loss
+    D -.->|L1 Anchor| E[Pixel Fidelity]:::component
+    D -.->|Gradient| F[Edge Preservation]:::component
+    D -.->|LPIPS| G[Perceptual Texture]:::component
+    D -.->|RaGAN| H[Adversarial Crisp]:::component
 ```
 
 ### Why This Works
@@ -126,16 +156,20 @@ Once the app launches at `http://localhost:8501`:
 
 ```mermaid
 graph TD
-    In[Input 3×H×W] --> SFE[Conv2d 3→64<br>Shallow Feature Extraction]
-    SFE --> RB[8× ResBlock + SE Attention<br>Deep Feature Extraction]
-    RB --> PBC[Conv2d 64→64<br>Post-body Convolution]
+    classDef layer fill:#34495e,stroke:#2c3e50,stroke-width:2px,color:#fff
+    classDef core fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    classDef upsample fill:#16a085,stroke:#1abc9c,stroke-width:2px,color:#fff
+    
+    In[Input 3×H×W] --> SFE[Conv2d 3→64<br>Shallow Feature Extraction]:::layer
+    SFE --> RB[8× ResBlock + SE Attention<br>Deep Feature Extraction]:::core
+    RB --> PBC[Conv2d 64→64<br>Post-body Convolution]:::layer
     
     %% Global Residual Connection
     SFE -.->|+ Global Residual| PBC
     
-    PBC --> PS1[PixelShuffle 2x<br>Stage 1: H×W → 2H×2W]
-    PS1 --> PS2[PixelShuffle 2x<br>Stage 2: 2H×2W → 4H×4W]
-    PS2 --> Recon[Conv2d 64→3<br>Final RGB Reconstruction]
+    PBC --> PS1[PixelShuffle 2x<br>Stage 1: H×W → 2H×2W]:::upsample
+    PS1 --> PS2[PixelShuffle 2x<br>Stage 2: 2H×2W → 4H×4W]:::upsample
+    PS2 --> Recon[Conv2d 64→3<br>Final RGB Reconstruction]:::layer
     Recon --> Out[Output 3×4H×4W]
 ```
 
