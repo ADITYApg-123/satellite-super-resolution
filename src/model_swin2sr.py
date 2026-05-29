@@ -109,7 +109,7 @@ def initialize_swin2sr_model(weight_path=None, upscale=4):
     
     if weight_path:
         try:
-            state_dict = torch.load(weight_path, map_location='cpu')
+            state_dict = torch.load(weight_path, map_location='cpu', weights_only=False)
             # Extract generator weights if loading from a GeoSafe checkpoint dict
             if 'generator' in state_dict:
                 model.load_state_dict(state_dict['generator'], strict=False)

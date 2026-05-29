@@ -460,3 +460,41 @@ We overhauled `app.py` to support the new V2 ecosystem, transforming it from a s
 
 ### What I Would Tell an Interviewer
 > "For the final application deployment, I prioritized defensibility and metric integrity. First, I used defensive Python imports for heavy third-party libraries like Real-ESRGAN, ensuring the core Streamlit app remains lightweight and crash-proof on local machines. Second, rather than just displaying theoretical metrics, I implemented a 'Consistency Check.' By downscaling the model's 4x prediction back to 1x and running PSNR against the original raw Sentinel-2 input, we get a mathematically rigorous measurement of hallucination. If a model hallucinates details that weren't mathematically present in the raw data, this Consistency PSNR will instantly flag it."
+
+---
+
+## Entry 15 — The Kaggle Execution & The 12-Channel Crash
+**Date**: 2026-05-29
+**Stage**: V2 Execution — Remote Cloud Debugging
+
+### What We Did
+We pushed the complete V2 pipeline (DataLoader, Swin2SR architecture, GeoSafe composite loss, and `train.py`) to Kaggle to begin our 50-epoch training run on the massive WorldStrat dataset. 
+
+However, we encountered a series of complex environment and data engineering crashes that required deep remote diagnostics:
+
+### The Bugs & Solutions
+1. **The Hidden Directory Structure**
+   - **Bug**: The DataLoader found 0 matches between the LR and HR images.
+   - **Diagnosis**: We wrote a custom diagnostic cell in Kaggle to scan the raw file system. We discovered the high-res Airbus images were hidden inside an unlisted `hr_dataset/12bit/` subfolder, and each location contained 4 different files (panchromatic, pansharpened, RGB, etc.).
+   - **Fix**: We explicitly mapped the DataLoader to the `12bit/` subfolder and targeted the `_ps.tiff` (Pansharpened) 3-channel image.
+
+2. **The Missing Dependency (`NameError: 'lpips' is not defined`)**
+   - **Bug**: The notebook crashed at Epoch 0 when calculating perceptual loss.
+   - **Diagnosis**: The `lpips` library was missing from `requirements.txt`.
+   - **Fix**: We updated `requirements.txt` and added a protective `ImportError` inside `loss_functions.py` to give the user a clear error message instead of a cryptic `NameError`.
+
+3. **The 12-Channel C++ Crash (`cv2::TiffDecoder`)**
+   - **Bug**: As soon as Epoch 1 started, the console flooded with C++ warnings: `Unsupported number of channels: channels >= 1 && channels <= 4 where channels is 12`.
+   - **Diagnosis**: The Sentinel-2 L2A ground images are not standard JPEGs — they are 12-channel multispectral TIFFs (containing Infrared, Coastal Aerosol, etc.). PyTorch's `cv2.imread` hard-crashes on anything larger than 4 channels (RGBA).
+   - **Fix**: We ripped out OpenCV completely and replaced it with **`rasterio`** (a dedicated geospatial library). We added explicit logic to slice the 12-channel array and extract exactly indices `[3, 2, 1]` (Band 4 Red, Band 3 Green, Band 2 Blue) to construct the true-color RGB matrix for the neural network.
+
+4. **Kaggle's Hidden Caching State**
+   - **Bug**: Even after fixing the code on GitHub, Kaggle kept throwing old `IndentationErrors`.
+   - **Diagnosis**: When users run `%cd` in Kaggle, the notebook moves working directories. Subsequent `!git clone` commands create nested repository folders, and Python caches the old broken modules in `sys.modules`.
+   - **Fix**: We enforced absolute paths (`/kaggle/working/satellite-super-resolution`) and a hard Kernel Restart to clear the cache.
+
+### The Success
+After resolving these, the V2 Engine successfully initialized on dual T4 GPUs. It streamed 3,928 paired geospatial patches using `rasterio`, successfully calculated the GeoSafe loss (G_Loss and D_Loss), and processed at a rate of 2.32 batches per second (approx. 3 minutes per epoch). The 90/10 Validation loop activated flawlessly at the end of each epoch, testing the model dynamically to prevent hallucination.
+
+### What I Would Tell an Interviewer
+> "The transition from local development to cloud execution is never seamless, especially when working with remote sensing data. When we launched our V2 pipeline on Kaggle, `cv2` violently crashed with a C++ decoder error. I diagnosed that Sentinel-2 imagery contains 12 multispectral bands, which breaks standard image libraries hard-capped at 4 channels. I immediately refactored the data ingestion pipeline to use `rasterio`, slicing the exact Red, Green, and Blue bands to construct a proper tensor. Furthermore, I had to navigate Jupyter's hidden state caching mechanisms, which were preventing the updated codebase from reloading. This debug session reinforced that in ML Engineering, you must have as deep an understanding of the Linux environment and data schema as you do of the PyTorch neural network."
