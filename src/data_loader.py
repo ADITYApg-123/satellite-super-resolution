@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import cv2
 import random
+import rasterio
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 
@@ -119,8 +120,6 @@ class WorldStratDataset(Dataset):
             lr_tensor = TF.rotate(lr_tensor, angle)
             hr_tensor = TF.rotate(hr_tensor, angle)
         return lr_tensor, hr_tensor
-
-import rasterio
 
     def _load_and_prepare(self, path, target_channels=3):
         """Load an image using rasterio (supports >4 channels)."""
