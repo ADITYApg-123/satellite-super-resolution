@@ -120,25 +120,34 @@ class WorldStratDataset(Dataset):
             hr_tensor = TF.rotate(hr_tensor, angle)
         return lr_tensor, hr_tensor
 
+import rasterio
+
     def _load_and_prepare(self, path, target_channels=3):
-        """Load an image and ensure it has exactly target_channels channels."""
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if img is None:
+        """Load an image using rasterio (supports >4 channels)."""
+        try:
+            # rasterio reads as (C, H, W)
+            with rasterio.open(path) as src:
+                img = src.read()
+            # Convert to (H, W, C)
+            img = np.transpose(img, (1, 2, 0))
+        except Exception:
             return None
         
         # Handle channel count
         if len(img.shape) == 2:
             img = np.stack([img] * target_channels, axis=-1)
         elif img.shape[2] > target_channels:
-            img = img[:, :, :target_channels]
+            # Sentinel-2 multi-spectral has 12 or 13 bands. 
+            # True color RGB is Band 4 (Red), Band 3 (Green), Band 2 (Blue), which are indices 3, 2, 1.
+            if img.shape[2] >= 12:
+                img = img[:, :, [3, 2, 1]]
+            else:
+                img = img[:, :, :target_channels]
         elif img.shape[2] < target_channels:
             pad = np.zeros((*img.shape[:2], target_channels - img.shape[2]), dtype=img.dtype)
             img = np.concatenate([img, pad], axis=-1)
         
-        # BGR -> RGB
-        if target_channels == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
+        # Rasterio natively reads RGB (not BGR like OpenCV), so no cvtColor needed!
         return normalize_sentinel_radiometry(img)
 
     def __getitem__(self, idx):
