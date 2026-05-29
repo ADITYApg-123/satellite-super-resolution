@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Live_Demo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production_Ready-22C55E?style=for-the-badge)]()
+[![Status](https://img.shields.io/badge/Status-Experimental_Release-8A2BE2?style=for-the-badge)]()
 
 <br>
 
@@ -38,7 +38,7 @@
 
 ## ✨ Key Features
 
-- 🛡️ **Zero Hallucination Guarantee**: A custom 4-component loss engine prioritizes physical accuracy over aesthetic deep-fakes.
+- 🛡️ **Hallucination-Minimizing Design**: A custom 4-component loss engine prioritizes physical accuracy and mathematically constrains the network against aesthetic deep-fakes.
 - ⚡ **Real-Time Performance**: Process 1024x1024 patches in under 0.5s via a highly-optimized 2.3M parameter architecture.
 - 🌍 **Live Earth Engine Integration**: Dynamically pull live satellite imagery from anywhere on Earth directly within the web app.
 - 🎨 **Interactive UI**: Compare before/after results with a sleek, user-friendly slider interface built on Streamlit.
@@ -52,7 +52,7 @@
 
 Most existing super-resolution models solve this by using **Generative Adversarial Networks (GANs)**, which hallucinate realistic-looking but physically nonexistent features — fake roads, phantom buildings, invented vegetation. This is dangerous for downstream applications like urban planning, environmental monitoring, and humanitarian aid.
 
-**GeoSafe SR** takes a fundamentally different approach: achieve state-of-the-art sharpness while **mathematically guaranteeing** that every pixel in the output can be traced back to the original satellite observation.
+**GeoSafe SR** takes a fundamentally different approach: achieve state-of-the-art sharpness while **mathematically constraining** the network to ensure that every output pixel is heavily anchored to the original satellite observation.
 
 ---
 
@@ -152,7 +152,9 @@ Once the app launches at `http://localhost:8501`:
 
 ## 🧠 Technical Deep Dive
 
-### Generator: Deep Residual Attention Network
+### Generator: Final Architecture Used In Results
+
+> **Architecture Note**: While the codebase class and UI selection retains the legacy name `Swin2SR v2` for backwards compatibility with earlier iterations, the final model is a lightweight **Convolutional Neural Network (CNN)**. It is a Deep Residual Attention Network utilizing 8 ResBlocks augmented with Squeeze-and-Excitation (SE) layers, drastically reducing the parameter count to 2.3M.
 
 ```mermaid
 graph TD
