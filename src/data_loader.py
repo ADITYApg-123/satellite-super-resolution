@@ -66,45 +66,65 @@ class WorldStratDataset(Dataset):
     def __init__(self, root_dir, csv_file='metadata.csv', max_cloud_cover=10.0, is_train=True):
         self.root_dir = root_dir
         self.is_train = is_train
+        self.hr_dir = os.path.join(root_dir, 'hr_dataset')
+        self.lr_dir = os.path.join(root_dir, 'lr_dataset')
         
-        # Load the CSV manifest
         csv_path = os.path.join(root_dir, csv_file)
         if not os.path.exists(csv_path):
-            print(f"Warning: {csv_path} not found. Operating in dummy mode for local testing.")
-            self.metadata = pd.DataFrame()
-            return
+            raise FileNotFoundError(f"Could not find CSV at {csv_path}")
             
         self.metadata = pd.read_csv(csv_path)
+        self.pairs = []
         
-        # Filter out cloudy images (assuming a 'cloud_cover' column exists)
-        if 'cloud_cover' in self.metadata.columns:
-            self.metadata = self.metadata[self.metadata['cloud_cover'] < max_cloud_cover]
+        # The first column 'Unnamed: 0' contains the Location ID (e.g. 'Landcover-777684')
+        id_col = self.metadata.columns[0]
+        
+        print(f"Scanning dataset folders in {root_dir}...")
+        for loc_id in self.metadata[id_col]:
+            loc_id = str(loc_id)
+            hr_path = None
+            lr_path = None
             
-        # Reset index after filtering
-        self.metadata = self.metadata.reset_index(drop=True)
-        print(f"Loaded WorldStrat Dataset: {len(self.metadata)} pristine image pairs found.")
+            # 1. Find the High-Res Image
+            hr_loc_dir = os.path.join(self.hr_dir, loc_id)
+            if os.path.exists(hr_loc_dir):
+                for f in os.listdir(hr_loc_dir):
+                    if f.endswith('.tif') or f.endswith('.tiff'):
+                        hr_path = os.path.join(hr_loc_dir, f)
+                        break
+                        
+            # 2. Find the Low-Res Image (Sentinel-2 L2A data)
+            lr_l2a_dir = os.path.join(self.lr_dir, loc_id, 'L2A')
+            if os.path.exists(lr_l2a_dir):
+                for f in os.listdir(lr_l2a_dir):
+                    if 'L2A_data.tif' in f or 'L2A_data.tiff' in f:
+                        lr_path = os.path.join(lr_l2a_dir, f)
+                        break
+            
+            if hr_path and lr_path:
+                self.pairs.append((lr_path, hr_path))
+                
+        if len(self.pairs) == 0:
+            raise ValueError(f"CRITICAL ERROR: Could not find any matching HR and LR images in {root_dir}")
+            
+        print(f"Successfully matched {len(self.pairs)} image pairs!")
 
     def __len__(self):
-        if self.metadata.empty:
-            return 8  # Return a few dummy batches for local testing
-        return len(self.metadata)
+        return len(self.pairs)
         
     def _apply_augmentations(self, lr_tensor, hr_tensor):
         """
         Applies safe geometric augmentations. 
         Crucial: Exact same augmentations must be applied to BOTH the LR and HR image!
         """
-        # Random Horizontal Flip
         if random.random() > 0.5:
             lr_tensor = TF.hflip(lr_tensor)
             hr_tensor = TF.hflip(hr_tensor)
             
-        # Random Vertical Flip
         if random.random() > 0.5:
             lr_tensor = TF.vflip(lr_tensor)
             hr_tensor = TF.vflip(hr_tensor)
             
-        # Random 90-degree Rotation
         if random.random() > 0.5:
             angles = [90, 180, 270]
             angle = random.choice(angles)
@@ -114,27 +134,16 @@ class WorldStratDataset(Dataset):
         return lr_tensor, hr_tensor
 
     def __getitem__(self, idx):
-        if self.metadata.empty:
-            # Dummy mode for local IDE testing (prevents crashes before Kaggle deployment)
-            # Returns a 3x64x64 LR and 3x256x256 HR (4x upscale)
-            return torch.rand(3, 64, 64), torch.rand(3, 256, 256)
-            
-        row = self.metadata.iloc[idx]
-        
-        # Auto-detect column names dynamically to prevent KeyErrors
-        if not hasattr(self, 'lr_col'):
-            cols = [c.lower() for c in row.keys()]
-            # Find the column that contains 'lr' or 'low'
-            self.lr_col = next((c for c in row.keys() if 'lr' in c.lower() or 'low' in c.lower()), row.keys()[0])
-            self.hr_col = next((c for c in row.keys() if 'hr' in c.lower() or 'high' in c.lower()), row.keys()[1])
-            print(f"Auto-detected columns: LR={self.lr_col}, HR={self.hr_col}")
-            
-        lr_full_path = os.path.join(self.root_dir, row[self.lr_col])
-        hr_full_path = os.path.join(self.root_dir, row[self.hr_col])
+        lr_full_path, hr_full_path = self.pairs[idx]
         
         # Load images (cv2.IMREAD_UNCHANGED reads 16-bit TIFFs correctly)
         lr_img = cv2.imread(lr_full_path, cv2.IMREAD_UNCHANGED)
         hr_img = cv2.imread(hr_full_path, cv2.IMREAD_UNCHANGED)
+        
+        if lr_img is None:
+            raise ValueError(f"Failed to load LR image: {lr_full_path}")
+        if hr_img is None:
+            raise ValueError(f"Failed to load HR image: {hr_full_path}")
         
         # Convert BGR to RGB (OpenCV default is BGR)
         if len(lr_img.shape) == 3 and lr_img.shape[2] == 3:
