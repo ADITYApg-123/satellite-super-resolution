@@ -60,106 +60,117 @@ def fetch_gee_image_with_retry(roi, start_date, end_date, max_cloud_cover=10, ma
 
 class WorldStratDataset(Dataset):
     """
-    V2 PyTorch Dataset for WorldStrat Kaggle Dataset.
-    Dynamically loads LR and HR image pairs from disk using the metadata.csv manifest.
+    WorldStrat Kaggle Dataset Loader.
+    
+    Dataset structure (verified from Kaggle):
+      hr_dataset/12bit/{loc_id}/{loc_id}_ps.tiff   (pansharpened HR, ~1.5m/px)
+      lr_dataset/{loc_id}/L2A/{loc_id}-N-L2A_data.tiff  (Sentinel-2 LR, ~10m/px)
     """
-    def __init__(self, root_dir, csv_file='metadata.csv', max_cloud_cover=10.0, is_train=True):
+    def __init__(self, root_dir, csv_file='metadata.csv', is_train=True, patch_size=128):
         self.root_dir = root_dir
         self.is_train = is_train
-        self.hr_dir = os.path.join(root_dir, 'hr_dataset')
+        self.patch_size = patch_size
+        self.hr_dir = os.path.join(root_dir, 'hr_dataset', '12bit')
         self.lr_dir = os.path.join(root_dir, 'lr_dataset')
-        
-        csv_path = os.path.join(root_dir, csv_file)
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"Could not find CSV at {csv_path}")
-            
-        self.metadata = pd.read_csv(csv_path)
         self.pairs = []
         
-        # The first column 'Unnamed: 0' contains the Location ID (e.g. 'Landcover-777684')
-        id_col = self.metadata.columns[0]
+        # Scan hr_dataset/12bit/ for all location folders
+        print(f"Scanning HR folder: {self.hr_dir}")
+        if not os.path.exists(self.hr_dir):
+            raise FileNotFoundError(f"HR folder not found: {self.hr_dir}")
         
-        print(f"Scanning dataset folders in {root_dir}...")
-        for loc_id in self.metadata[id_col]:
-            loc_id = str(loc_id)
-            hr_path = None
+        hr_locations = sorted(os.listdir(self.hr_dir))
+        print(f"Found {len(hr_locations)} HR locations. Matching with LR...")
+        
+        for loc_id in hr_locations:
+            # HR: use the pansharpened TIFF (_ps.tiff)
+            hr_path = os.path.join(self.hr_dir, loc_id, f"{loc_id}_ps.tiff")
+            
+            # LR: use the first L2A_data revisit
+            lr_l2a_dir = os.path.join(self.lr_dir, loc_id, 'L2A')
             lr_path = None
             
-            # 1. Find the High-Res Image
-            hr_loc_dir = os.path.join(self.hr_dir, loc_id)
-            if os.path.exists(hr_loc_dir):
-                for f in os.listdir(hr_loc_dir):
-                    if f.endswith('.tif') or f.endswith('.tiff'):
-                        hr_path = os.path.join(hr_loc_dir, f)
-                        break
-                        
-            # 2. Find the Low-Res Image (Sentinel-2 L2A data)
-            lr_l2a_dir = os.path.join(self.lr_dir, loc_id, 'L2A')
             if os.path.exists(lr_l2a_dir):
-                for f in os.listdir(lr_l2a_dir):
-                    if 'L2A_data.tif' in f or 'L2A_data.tiff' in f:
-                        lr_path = os.path.join(lr_l2a_dir, f)
+                for fname in sorted(os.listdir(lr_l2a_dir)):
+                    if 'L2A_data' in fname and fname.endswith(('.tif', '.tiff')):
+                        lr_path = os.path.join(lr_l2a_dir, fname)
                         break
             
-            if hr_path and lr_path:
+            if os.path.exists(hr_path) and lr_path:
                 self.pairs.append((lr_path, hr_path))
                 
         if len(self.pairs) == 0:
-            raise ValueError(f"CRITICAL ERROR: Could not find any matching HR and LR images in {root_dir}")
+            raise ValueError(f"No matching LR/HR pairs found!")
             
-        print(f"Successfully matched {len(self.pairs)} image pairs!")
+        print(f"✅ Successfully matched {len(self.pairs)} LR-HR image pairs!")
 
     def __len__(self):
         return len(self.pairs)
         
     def _apply_augmentations(self, lr_tensor, hr_tensor):
-        """
-        Applies safe geometric augmentations. 
-        Crucial: Exact same augmentations must be applied to BOTH the LR and HR image!
-        """
         if random.random() > 0.5:
             lr_tensor = TF.hflip(lr_tensor)
             hr_tensor = TF.hflip(hr_tensor)
-            
         if random.random() > 0.5:
             lr_tensor = TF.vflip(lr_tensor)
             hr_tensor = TF.vflip(hr_tensor)
-            
         if random.random() > 0.5:
-            angles = [90, 180, 270]
-            angle = random.choice(angles)
+            angle = random.choice([90, 180, 270])
             lr_tensor = TF.rotate(lr_tensor, angle)
             hr_tensor = TF.rotate(hr_tensor, angle)
-            
         return lr_tensor, hr_tensor
 
+    def _load_and_prepare(self, path, target_channels=3):
+        """Load an image and ensure it has exactly target_channels channels."""
+        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return None
+        
+        # Handle channel count
+        if len(img.shape) == 2:
+            img = np.stack([img] * target_channels, axis=-1)
+        elif img.shape[2] > target_channels:
+            img = img[:, :, :target_channels]
+        elif img.shape[2] < target_channels:
+            pad = np.zeros((*img.shape[:2], target_channels - img.shape[2]), dtype=img.dtype)
+            img = np.concatenate([img, pad], axis=-1)
+        
+        # BGR -> RGB
+        if target_channels == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        return normalize_sentinel_radiometry(img)
+
     def __getitem__(self, idx):
-        lr_full_path, hr_full_path = self.pairs[idx]
+        lr_path, hr_path = self.pairs[idx]
         
-        # Load images (cv2.IMREAD_UNCHANGED reads 16-bit TIFFs correctly)
-        lr_img = cv2.imread(lr_full_path, cv2.IMREAD_UNCHANGED)
-        hr_img = cv2.imread(hr_full_path, cv2.IMREAD_UNCHANGED)
+        hr_img = self._load_and_prepare(hr_path)
+        lr_img = self._load_and_prepare(lr_path)
         
-        if lr_img is None:
-            raise ValueError(f"Failed to load LR image: {lr_full_path}")
-        if hr_img is None:
-            raise ValueError(f"Failed to load HR image: {hr_full_path}")
+        # Skip broken images
+        if hr_img is None or lr_img is None:
+            return self.__getitem__(random.randint(0, len(self.pairs) - 1))
         
-        # Convert BGR to RGB (OpenCV default is BGR)
-        if len(lr_img.shape) == 3 and lr_img.shape[2] == 3:
-            lr_img = cv2.cvtColor(lr_img, cv2.COLOR_BGR2RGB)
-            hr_img = cv2.cvtColor(hr_img, cv2.COLOR_BGR2RGB)
-            
-        # Normalize (assuming 16-bit Sentinel-2 data)
-        lr_norm = normalize_sentinel_radiometry(lr_img)
-        hr_norm = normalize_sentinel_radiometry(hr_img)
+        # Crop HR to a square patch
+        h, w = hr_img.shape[:2]
+        ps = min(self.patch_size, h, w)
+        if self.is_train:
+            top = random.randint(0, h - ps)
+            left = random.randint(0, w - ps)
+        else:
+            top, left = (h - ps) // 2, (w - ps) // 2
+        hr_patch = hr_img[top:top+ps, left:left+ps]
         
-        # Convert to PyTorch tensors: (H, W, C) -> (C, H, W)
-        lr_tensor = torch.from_numpy(lr_norm).permute(2, 0, 1).float()
-        hr_tensor = torch.from_numpy(hr_norm).permute(2, 0, 1).float()
+        # Create matching LR patch by downscaling HR by 4x
+        lr_size = ps // 4
+        lr_patch = cv2.resize(hr_patch, (lr_size, lr_size), interpolation=cv2.INTER_CUBIC)
         
-        # Apply data augmentations if in training mode
+        # To tensors: (H,W,C) -> (C,H,W)
+        hr_tensor = torch.from_numpy(hr_patch).permute(2, 0, 1).float()
+        lr_tensor = torch.from_numpy(lr_patch).permute(2, 0, 1).float()
+        
         if self.is_train:
             lr_tensor, hr_tensor = self._apply_augmentations(lr_tensor, hr_tensor)
             
         return lr_tensor, hr_tensor
+
