@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Try to import lpips. It will fail if not installed, which is handled gracefully in train.py
 try:
     import lpips
+    LPIPS_AVAILABLE = True
 except ImportError:
-    pass
+    LPIPS_AVAILABLE = False
 
 class CharbonnierLoss(nn.Module):
     """
@@ -123,6 +123,8 @@ class LPIPSWrapper(nn.Module):
     """
     def __init__(self, device='cuda'):
         super(LPIPSWrapper, self).__init__()
+        if not LPIPS_AVAILABLE:
+            raise ImportError("CRITICAL ERROR: 'lpips' library is not installed! You must run '!pip install lpips' in your Kaggle notebook before training.")
         self.lpips_model = lpips.LPIPS(net='vgg').to(device)
         # We freeze the VGG network
         for param in self.lpips_model.parameters():
