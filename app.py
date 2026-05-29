@@ -190,6 +190,40 @@ if lr_pil is not None:
         make_responsive=True,
     )
     
+    # --- Download Options ---
+    st.markdown("---")
+    st.subheader("📥 Download Results")
+    
+    from io import BytesIO
+    
+    # Save High-Res to bytes
+    hr_buf = BytesIO()
+    blended_pil.save(hr_buf, format="PNG")
+    hr_byte_im = hr_buf.getvalue()
+    
+    # Save Low-Res to bytes
+    lr_buf = BytesIO()
+    lr_pil.save(lr_buf, format="PNG")
+    lr_byte_im = lr_buf.getvalue()
+    
+    dl_col1, dl_col2 = st.columns(2)
+    with dl_col1:
+        st.download_button(
+            label="Download High-Res (AI Output)",
+            data=hr_byte_im,
+            file_name="geosafe_high_res.png",
+            mime="image/png",
+            use_container_width=True
+        )
+    with dl_col2:
+        st.download_button(
+            label="Download Low-Res (Original Input)",
+            data=lr_byte_im,
+            file_name="original_low_res.png",
+            mime="image/png",
+            use_container_width=True
+        )
+    
     # --- Real Metrics Calculation ---
     st.markdown("---")
     st.subheader("Safety & Evaluation Metrics")
